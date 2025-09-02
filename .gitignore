@@ -1,0 +1,18 @@
+# Node
+**/node_modules/
+**/dist/
+**/.vercel/
+**/.netlify/
+
+# Local env files
+**/.env
+**/.env.*.local
+**/.env.local
+**/.env.*.example
+
+# Credentials (never commit)
+backend/service-account-key.json
+
+# OS/editor noise
+.DS_Store
+*.log
