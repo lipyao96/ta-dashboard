@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { RefreshCw } from 'lucide-react';
-import FunnelChart from './FunnelChart';
 import D3FunnelChart from './D3FunnelChart';
 import { Role, DashboardConfig } from '../types';
 
 const Dashboard: React.FC = () => {
   const [roles, setRoles] = useState<Role[]>([]);
-  const [config, setConfig] = useState<DashboardConfig>({
+  const [config] = useState<DashboardConfig>({
     refreshInterval: 60,
     conversionThreshold: 30,
     inactivityThreshold: 3

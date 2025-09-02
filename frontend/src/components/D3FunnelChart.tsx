@@ -164,16 +164,13 @@ const D3FunnelChart: React.FC<D3FunnelChartProps> = ({ stages, roleName, convers
           {conversionRates.map((rate, index) => {
             // Determine health status based on conversion rate
             let healthStatus = 'healthy';
-            let healthColor = 'green';
             let healthText = 'Healthy';
             
             if (rate.rate < 30) {
               healthStatus = 'critical';
-              healthColor = 'red';
               healthText = 'Needs Attention';
             } else if (rate.rate < 50) {
               healthStatus = 'risk';
-              healthColor = 'yellow';
               healthText = 'At Risk';
             }
             

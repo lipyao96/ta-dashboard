@@ -4,7 +4,7 @@ import App from './App.tsx'
 import { BrowserRouter } from 'react-router-dom'
 import axios from 'axios'
 // Point Axios to backend base URL in production deploys
-axios.defaults.baseURL = import.meta.env.VITE_API_BASE || ''
+axios.defaults.baseURL = import.meta.env.VITE_API_BASE || 'http://localhost:3001'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
