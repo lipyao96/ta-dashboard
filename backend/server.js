@@ -104,8 +104,11 @@ app.get('/api/dashboard', async (req, res) => {
     if (String(process.env.FORM_DRIVEN_FUNNEL || '').toLowerCase() === 'true') {
       try {
         const sheetsList = response.data.sheets || [];
-        // Prefer tab that contains "form responses"
-        const formSheet = sheetsList.find(s => (s.properties.title || '').toLowerCase().includes('form responses'))
+        // Prefer a tab that contains variants of Form Responses (with or without underscore/number)
+        const formSheet = sheetsList.find(s => {
+            const t = (s.properties.title || '').toLowerCase();
+            return t.includes('form responses') || t.includes('form_responses') || /form\s*responses\s*\d+/.test(t);
+          })
           || sheetsList.find(s => (s.properties.title || '').toLowerCase().includes('form'));
         if (formSheet) {
           const rows = formSheet.data?.[0]?.rowData || [];
