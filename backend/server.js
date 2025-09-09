@@ -292,8 +292,9 @@ app.get('/api/dashboard', async (req, res) => {
     let endDate = null;
     if (start && end) {
       try {
-        startDate = new Date(`${start}T00:00:00`);
-        endDate = new Date(`${end}T23:59:59`);
+        // Interpret requested window in GMT+8 (Asia/Kuala_Lumpur / Singapore)
+        startDate = new Date(`${start}T00:00:00+08:00`);
+        endDate = new Date(`${end}T23:59:59.999+08:00`);
       } catch (_) {
         startDate = null; endDate = null;
       }
