@@ -211,6 +211,7 @@ app.get('/api/dashboard', async (req, res) => {
               const fRows = funnelSheet.data?.[0]?.rowData || [];
               if (fRows.length > 0) {
                 const h = fRows[0]?.values?.map(v => (v.formattedValue || '').trim()) || [];
+                const idxTs = h.findIndex(x => (x || '').toLowerCase().includes('timestamp'));
                 const idxDept = h.findIndex(x => (x || '').toLowerCase().startsWith('department'));
                 const idxRole = h.findIndex(x => (x || '').toLowerCase().includes('role'));
                 // Stage columns are everything except non-funnel fields
@@ -222,6 +223,18 @@ app.get('/api/dashboard', async (req, res) => {
                 for (let i = 1; i < fRows.length; i++) {
                   const r = fRows[i];
                   if (!r?.values) continue;
+                  // Parse timestamp for date filtering
+                  let when = 0;
+                  if (idxTs >= 0) {
+                    const raw = r.values[idxTs]?.formattedValue || '';
+                    const d = raw && !isNaN(Date.parse(raw))
+                      ? new Date(raw)
+                      : new Date(raw.replace(/(\d{1,2})\/(\d{1,2})\/(\d{4}).*/, '$3-$1-$2'));
+                    if (d instanceof Date && !isNaN(+d)) when = +d;
+                  }
+                  if (startDate && endDate && when) {
+                    if (!(when >= +startDate && when <= +endDate)) continue;
+                  }
                   const dept = idxDept >= 0 ? (r.values[idxDept]?.formattedValue || '') : '';
                   const role = idxRole >= 0 ? (r.values[idxRole]?.formattedValue || '') : (r.values[0]?.formattedValue || '');
                   if (!role) continue;
@@ -249,7 +262,7 @@ app.get('/api/dashboard', async (req, res) => {
                     name: `${dept ? dept + ' - ' : ''}${role}`,
                     stages,
                     remarks: '',
-                    lastUpdated: '',
+                    lastUpdated: when ? new Date(when).toLocaleDateString('en-US') : '',
                     isActive: true,
                     funnelHealthScore,
                     conversionRates,
