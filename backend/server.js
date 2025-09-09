@@ -204,6 +204,64 @@ app.get('/api/dashboard', async (req, res) => {
               console.log(`Form-driven funnel: ${rolesFromForm.length} roles`);
               return res.json({ roles: rolesFromForm });
             }
+
+            // Fallback: read a pre-aggregated tab named 'Funnel Analysis'
+            const funnelSheet = sheetsList.find(s => (s.properties.title || '').toLowerCase() === 'funnel analysis');
+            if (funnelSheet) {
+              const fRows = funnelSheet.data?.[0]?.rowData || [];
+              if (fRows.length > 0) {
+                const h = fRows[0]?.values?.map(v => (v.formattedValue || '').trim()) || [];
+                const idxDept = h.findIndex(x => (x || '').toLowerCase().startsWith('department'));
+                const idxRole = h.findIndex(x => (x || '').toLowerCase().includes('role'));
+                // Stage columns are everything except non-funnel fields
+                const stageCols = h
+                  .map((col, i) => ({ col, i }))
+                  .filter(({ col }) => col && !/position|role|department|last_?updated|remarks/i.test(col));
+
+                const rolesFromFunnel = [];
+                for (let i = 1; i < fRows.length; i++) {
+                  const r = fRows[i];
+                  if (!r?.values) continue;
+                  const dept = idxDept >= 0 ? (r.values[idxDept]?.formattedValue || '') : '';
+                  const role = idxRole >= 0 ? (r.values[idxRole]?.formattedValue || '') : (r.values[0]?.formattedValue || '');
+                  if (!role) continue;
+
+                  const stages = stageCols.map(({ col, i: ci }) => ({
+                    stage_name: col,
+                    candidate_count: parseInt(r.values[ci]?.formattedValue || '0', 10) || 0,
+                    last_updated: ''
+                  }));
+
+                  // conversion
+                  const conversionRates = [];
+                  for (let j = 1; j < stages.length; j++) {
+                    const a = stages[j - 1];
+                    const b = stages[j];
+                    const rate = a.candidate_count > 0 ? (b.candidate_count / a.candidate_count) * 100 : 0;
+                    conversionRates.push({ fromStage: a.stage_name, toStage: b.stage_name, rate, isLow: rate < 30 });
+                  }
+
+                  const totalApplicants = stages[0]?.candidate_count || 0;
+                  const totalHired = stages[stages.length - 1]?.candidate_count || 0;
+                  const funnelHealthScore = totalApplicants > 0 ? (totalHired / totalApplicants) * 100 : 0;
+
+                  rolesFromFunnel.push({
+                    name: `${dept ? dept + ' - ' : ''}${role}`,
+                    stages,
+                    remarks: '',
+                    lastUpdated: '',
+                    isActive: true,
+                    funnelHealthScore,
+                    conversionRates,
+                  });
+                }
+
+                if (rolesFromFunnel.length > 0) {
+                  console.log(`Funnel Analysis fallback: ${rolesFromFunnel.length} roles`);
+                  return res.json({ roles: rolesFromFunnel });
+                }
+              }
+            }
           }
         }
       } catch (e) {
