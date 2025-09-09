@@ -100,6 +100,114 @@ app.get('/api/dashboard', async (req, res) => {
       includeGridData: true,
     });
 
+    // Optional: Switch to form-driven aggregation when enabled
+    if (String(process.env.FORM_DRIVEN_FUNNEL || '').toLowerCase() === 'true') {
+      try {
+        const sheetsList = response.data.sheets || [];
+        // Prefer tab that contains "form responses"
+        const formSheet = sheetsList.find(s => (s.properties.title || '').toLowerCase().includes('form responses'))
+          || sheetsList.find(s => (s.properties.title || '').toLowerCase().includes('form'));
+        if (formSheet) {
+          const rows = formSheet.data?.[0]?.rowData || [];
+          if (rows.length > 0) {
+            const headers = rows[0]?.values?.map(v => (v.formattedValue || '').trim()) || [];
+
+            // Resolve indices (robust, ignore persona prefix like [TA] or [Hiring Lead])
+            const findIdx = (predicates) => headers.findIndex(h => {
+              const t = (h || '').toLowerCase();
+              return predicates.some(p => t.includes(p));
+            });
+            const idxTimestamp = findIdx(['timestamp', 'date']);
+            const idxDept = findIdx(['department']);
+            const idxRole = findIdx(['role', 'position']);
+            const idxNew = findIdx(['new applicants']);
+            const idxQuizSent = findIdx(['quiz sent']);
+            const idxQuizDone = findIdx(['quiz complet']);
+            const idxScreened = findIdx(['screened by ta']);
+            const idxTech = findIdx(['technical assessment']);
+            const idxHm = findIdx(['interviewed by hm']);
+            const idxOffer = findIdx(['offer made']);
+            const idxHired = findIdx(['hired']);
+            const idxRemarks = findIdx(['remarks']);
+
+            // Group by Department + Role, take the latest row by timestamp
+            const keyToRow = new Map();
+            for (let i = 1; i < rows.length; i++) {
+              const r = rows[i];
+              if (!r?.values) continue;
+              const dept = idxDept >= 0 ? (r.values[idxDept]?.formattedValue || '') : '';
+              const role = idxRole >= 0 ? (r.values[idxRole]?.formattedValue || '') : '';
+              if (!dept && !role) continue;
+              const tsRaw = idxTimestamp >= 0 ? (r.values[idxTimestamp]?.formattedValue || '') : '';
+              const ts = new Date(tsRaw && !isNaN(Date.parse(tsRaw)) ? tsRaw : tsRaw.replace(/(\d{1,2})\/(\d{1,2})\/(\d{4}).*/, '$3-$1-$2'));
+              const key = `${dept}|||${role}`;
+              const prev = keyToRow.get(key);
+              if (!prev || (ts instanceof Date && !isNaN(+ts) && +ts > prev.when)) {
+                keyToRow.set(key, { row: r, when: +ts || 0, dept, role });
+              }
+            }
+
+            const stageOrder = [
+              { name: 'New Applicants', idx: idxNew },
+              { name: 'Quiz Sent', idx: idxQuizSent },
+              { name: 'Quiz Completed', idx: idxQuizDone },
+              { name: 'Screened by TA', idx: idxScreened },
+              { name: 'Technical Assessment', idx: idxTech },
+              { name: 'Interviewed by HM', idx: idxHm },
+              { name: 'Offer Made', idx: idxOffer },
+              { name: 'Hired', idx: idxHired },
+            ];
+
+            const rolesFromForm = [];
+            for (const { row, when, dept, role } of keyToRow.values()) {
+              const stages = stageOrder
+                .filter(s => s.idx >= 0)
+                .map(s => ({
+                  stage_name: s.name,
+                  candidate_count: parseInt(row.values[s.idx]?.formattedValue || '0', 10) || 0,
+                  last_updated: ''
+                }));
+
+              // Build conversion rates
+              const conversionRates = [];
+              for (let i = 1; i < stages.length; i++) {
+                const a = stages[i - 1];
+                const b = stages[i];
+                const rate = a.candidate_count > 0 ? (b.candidate_count / a.candidate_count) * 100 : 0;
+                conversionRates.push({ fromStage: a.stage_name, toStage: b.stage_name, rate, isLow: rate < 30 });
+              }
+
+              const totalApplicants = stages[0]?.candidate_count || 0;
+              const totalHired = stages[stages.length - 1]?.candidate_count || 0;
+              const funnelHealthScore = totalApplicants > 0 ? (totalHired / totalApplicants) * 100 : 0;
+
+              // Date filter (based on latest timestamp)
+              if (startDate && endDate && when) {
+                if (!(when >= +startDate && when <= +endDate)) continue;
+              }
+
+              rolesFromForm.push({
+                name: `${dept} - ${role}`,
+                stages,
+                remarks: idxRemarks >= 0 ? (row.values[idxRemarks]?.formattedValue || '') : '',
+                lastUpdated: when ? new Date(when).toLocaleDateString('en-US') : '',
+                isActive: true,
+                funnelHealthScore,
+                conversionRates,
+              });
+            }
+
+            if (rolesFromForm.length > 0) {
+              console.log(`Form-driven funnel: ${rolesFromForm.length} roles`);
+              return res.json({ roles: rolesFromForm });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Form-driven funnel failed, falling back to role tabs:', e.message);
+      }
+    }
+
     const allRoles = [];
     // optional date filtering via query params (YYYY-MM-DD)
     const { start, end } = req.query;
