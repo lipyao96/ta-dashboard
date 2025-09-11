@@ -78,6 +78,20 @@ const DailyUpdates: React.FC = () => {
     }, { openings: 0, scheduled: 0, completed: 0, cancelled: 0, offers: 0, pending: 0, upcoming: 0 });
   }, [updates]);
 
+  const parseRemarks = (text?: string): string[] => {
+    if (!text) return [];
+    const s = String(text);
+    // Normalize bullets from form: handle newlines and " - " separators
+    const unified = s
+      .replace(/\r?\n/g, ' || ')
+      .replace(/\s+-\s+/g, ' || ')
+      .replace(/^\s*-\s*/, '');
+    return unified
+      .split(/\s*\|\|\s*/)
+      .map(part => part.trim())
+      .filter(Boolean);
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
@@ -91,21 +105,21 @@ const DailyUpdates: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
           <div>
             <label className="block text-xs text-gray-400 mb-1">Start date</label>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full bg-gray-700 text-gray-200 border border-gray-600 rounded-md px-2 py-1" />
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full bg-gray-700 text-gray-200 border border-gray-600 rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
             <label className="block text-xs text-gray-400 mb-1">End date</label>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full bg-gray-700 text-gray-200 border border-gray-600 rounded-md px-2 py-1" />
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full bg-gray-700 text-gray-200 border border-gray-600 rounded-md px-3 py-2 text-sm" />
           </div>
           <div>
             <label className="block text-xs text-gray-400 mb-1">TA</label>
-            <select value={selectedTa} onChange={(e) => setSelectedTa(e.target.value)} className="w-full bg-gray-700 text-gray-200 border border-gray-600 rounded-md px-2 py-1">
+            <select value={selectedTa} onChange={(e) => setSelectedTa(e.target.value)} className="w-full bg-gray-700 text-gray-200 border border-gray-600 rounded-md px-3 py-2 text-sm">
               {taOptions.map(v => <option key={v} value={v}>{v}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-xs text-gray-400 mb-1">Department</label>
-            <select value={selectedDept} onChange={(e) => setSelectedDept(e.target.value)} className="w-full bg-gray-700 text-gray-200 border border-gray-600 rounded-md px-2 py-1">
+            <select value={selectedDept} onChange={(e) => setSelectedDept(e.target.value)} className="w-full bg-gray-700 text-gray-200 border border-gray-600 rounded-md px-3 py-2 text-sm">
               {deptOptions.map(v => <option key={v} value={v}>{v}</option>)}
             </select>
           </div>
@@ -128,40 +142,50 @@ const DailyUpdates: React.FC = () => {
           <div className="text-gray-400">Loading...</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm text-gray-200 text-center">
-              <thead className="text-gray-400">
+            <table className="min-w-full text-base text-gray-200 text-center">
+              <thead className="text-gray-300">
                 <tr>
-                  <th className="py-2 px-3 align-middle">Date</th>
-                  <th className="py-2 px-3 align-middle">TA</th>
-                  <th className="py-2 px-3 align-middle">Dept</th>
-                  <th className="py-2 px-3 align-middle">Country</th>
-                  <th className="py-2 px-3 align-middle">Role</th>
-                  <th className="py-2 px-3 align-middle">Openings</th>
-                  <th className="py-2 px-3 align-middle">Sched</th>
-                  <th className="py-2 px-3 align-middle">Done</th>
-                  <th className="py-2 px-3 align-middle">Cancelled</th>
-                  <th className="py-2 px-3 align-middle">Offers</th>
-                  <th className="py-2 px-3 align-middle">Pending</th>
-                  <th className="py-2 px-3 align-middle">Upcoming HM</th>
-                  <th className="py-2 px-3 align-middle">Remarks</th>
+                  <th className="py-3 px-4 align-middle">Date</th>
+                  <th className="py-3 px-4 align-middle">TA</th>
+                  <th className="py-3 px-4 align-middle">Dept</th>
+                  <th className="py-3 px-4 align-middle">Country</th>
+                  <th className="py-3 px-4 align-middle min-w-[220px]">Role</th>
+                  <th className="py-3 px-4 align-middle">Openings</th>
+                  <th className="py-3 px-4 align-middle">Sched</th>
+                  <th className="py-3 px-4 align-middle">Done</th>
+                  <th className="py-3 px-4 align-middle">Cancelled</th>
+                  <th className="py-3 px-4 align-middle">Offers</th>
+                  <th className="py-3 px-4 align-middle">Pending</th>
+                  <th className="py-3 px-4 align-middle">Upcoming HM</th>
+                  <th className="py-3 px-4 align-middle min-w-[420px] text-left">Remarks</th>
                 </tr>
               </thead>
               <tbody>
                 {updates.map((u, idx) => (
                   <tr key={idx} className="border-t border-gray-700">
-                    <td className="py-2 px-3 align-middle">{u.date}</td>
-                    <td className="py-2 px-3 align-middle">{u.taName}</td>
-                    <td className="py-2 px-3 align-middle">{u.department}</td>
-                    <td className="py-2 px-3 align-middle">{u.country}</td>
-                    <td className="py-2 px-3 align-middle">{u.role}</td>
-                    <td className="py-2 px-3 align-middle">{u.numberOfOpenings}</td>
-                    <td className="py-2 px-3 align-middle">{u.interviewsScheduled}</td>
-                    <td className="py-2 px-3 align-middle">{u.interviewsCompleted}</td>
-                    <td className="py-2 px-3 align-middle">{u.cancelledNoShow}</td>
-                    <td className="py-2 px-3 align-middle">{u.offersMade}</td>
-                    <td className="py-2 px-3 align-middle">{u.pendingInterviewFeedback}</td>
-                    <td className="py-2 px-3 align-middle">{u.upcomingHmInterviews}</td>
-                    <td className="py-2 px-3 align-middle max-w-lg truncate" title={u.remarks}>{u.remarks}</td>
+                    <td className="py-3 px-4 align-middle">{u.date}</td>
+                    <td className="py-3 px-4 align-middle">{u.taName}</td>
+                    <td className="py-3 px-4 align-middle">{u.department}</td>
+                    <td className="py-3 px-4 align-middle">{u.country}</td>
+                    <td className="py-3 px-4 align-middle min-w-[220px]">{u.role}</td>
+                    <td className="py-3 px-4 align-middle">{u.numberOfOpenings}</td>
+                    <td className="py-3 px-4 align-middle">{u.interviewsScheduled}</td>
+                    <td className="py-3 px-4 align-middle">{u.interviewsCompleted}</td>
+                    <td className="py-3 px-4 align-middle">{u.cancelledNoShow}</td>
+                    <td className="py-3 px-4 align-middle">{u.offersMade}</td>
+                    <td className="py-3 px-4 align-middle">{u.pendingInterviewFeedback}</td>
+                    <td className="py-3 px-4 align-middle">{u.upcomingHmInterviews}</td>
+                    <td className="py-3 px-4 align-top min-w-[420px] text-left whitespace-pre-wrap break-words">
+                      {parseRemarks(u.remarks).length > 0 ? (
+                        <ul className="list-disc pl-5 space-y-1">
+                          {parseRemarks(u.remarks).map((item, i) => (
+                            <li key={i}>{item}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className="text-gray-400">{u.remarks || ''}</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
