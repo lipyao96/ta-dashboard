@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { DailyUpdate } from '../types';
+import { RefreshCw } from 'lucide-react';
 
 const DailyUpdates: React.FC = () => {
   const [updates, setUpdates] = useState<DailyUpdate[]>([]);
@@ -31,27 +32,28 @@ const DailyUpdates: React.FC = () => {
   const [selectedTa, setSelectedTa] = useState<string>('All');
   const [selectedDept, setSelectedDept] = useState<string>('All');
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const res = await axios.get(`/api/daily-updates`, {
-          params: {
-            start: startDate,
-            end: endDate,
-            ta: selectedTa !== 'All' ? selectedTa : undefined,
-            dept: selectedDept !== 'All' ? selectedDept : undefined,
-          }
-        });
-        setUpdates(res.data?.updates || []);
-      } catch (_) {
-        setUpdates([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get(`/api/daily-updates`, {
+        params: {
+          start: startDate,
+          end: endDate,
+          ta: selectedTa !== 'All' ? selectedTa : undefined,
+          dept: selectedDept !== 'All' ? selectedDept : undefined,
+        }
+      });
+      setUpdates(res.data?.updates || []);
+    } catch (_) {
+      setUpdates([]);
+    } finally {
+      setLoading(false);
+    }
   }, [startDate, endDate, selectedTa, selectedDept]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Build filter options from current results
   const taOptions = useMemo(() => {
@@ -97,7 +99,17 @@ const DailyUpdates: React.FC = () => {
       <div className="max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-white">Daily Update & Progress</h1>
-        <div className="text-sm text-gray-400">Range: {startDate} – {endDate}</div>
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-gray-400">Range: {startDate} – {endDate}</div>
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
