@@ -112,6 +112,7 @@ app.get('/api/dashboard', async (req, res) => {
           const idxTs = h.findIndex(x => (x || '').toLowerCase().includes('timestamp') || (x || '').toLowerCase().includes('date'));
           const idxDept = h.findIndex(x => (x || '').toLowerCase().startsWith('department'));
           const idxRole = h.findIndex(x => (x || '').toLowerCase().includes('role'));
+          const idxRemarks = h.findIndex(x => (x || '').toLowerCase().includes('remarks'));
           // Stage columns are everything except non-funnel fields
           const stageCols = h
             .map((col, i) => ({ col, i }))
@@ -168,7 +169,7 @@ app.get('/api/dashboard', async (req, res) => {
             rolesFromFunnel.push({
               name: `${dept ? dept + ' - ' : ''}${role}`,
               stages,
-              remarks: '',
+              remarks: idxRemarks >= 0 ? (r.values[idxRemarks]?.formattedValue || '') : '',
               lastUpdated: when ? new Date(when).toLocaleDateString('en-US') : '',
               isActive: true,
               funnelHealthScore,
