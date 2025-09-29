@@ -14,8 +14,33 @@ interface D3FunnelChartProps {
 const D3FunnelChart: React.FC<D3FunnelChartProps> = ({ stages, roleName, conversionRates, conversionThreshold, remarks, lastUpdated }) => {
   const svgRef = useRef<SVGSVGElement>(null);
 
+  // Sanitize stage names and hide Technical Assessment when it's 0 or missing
+  const sanitizedStages: FunnelStage[] = stages
+    .map(s => ({
+      stage_name: (s.stage_name || '').replace(/^\s*\[(?:TA|Hiring\s*Lead)\]\s*/i, ''),
+      candidate_count: s.candidate_count,
+      last_updated: s.last_updated,
+    }))
+    .filter(s => !(s.stage_name.toLowerCase() === 'technical assessment' && (!s.candidate_count || s.candidate_count === 0)));
+
+  // Recompute conversion rates after any stage removals/renames so cards match the funnel
+  const displayConversionRates = sanitizedStages.map((_, i) => {
+    if (i === 0) return null;
+    const prev = sanitizedStages[i - 1];
+    const curr = sanitizedStages[i];
+    const rate = prev && prev.candidate_count > 0
+      ? (curr.candidate_count / prev.candidate_count) * 100
+      : 0;
+    return {
+      fromStage: prev.stage_name,
+      toStage: curr.stage_name,
+      rate,
+      isLow: rate < 30,
+    };
+  }).filter(Boolean) as Array<{ fromStage: string; toStage: string; rate: number; isLow: boolean }>;
+
   useEffect(() => {
-    if (!svgRef.current || stages.length === 0) return;
+    if (!svgRef.current || sanitizedStages.length === 0) return;
 
     // Clear previous chart
     d3.select(svgRef.current).selectAll("*").remove();
@@ -33,7 +58,7 @@ const D3FunnelChart: React.FC<D3FunnelChartProps> = ({ stages, roleName, convers
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
     // Create funnel data
-    const funnelData = stages.map((stage, index) => ({
+    const funnelData = sanitizedStages.map((stage, index) => ({
       name: stage.stage_name,
       value: stage.candidate_count,
       color: index === 0 ? '#d32f2f' : 
@@ -92,8 +117,8 @@ const D3FunnelChart: React.FC<D3FunnelChartProps> = ({ stages, roleName, convers
         .text(d.name);
 
       // Add conversion rate to the left
-      if (i > 0 && conversionRates[i - 1]) {
-        const rate = conversionRates[i - 1];
+      if (i > 0 && displayConversionRates[i - 1]) {
+        const rate = displayConversionRates[i - 1];
         let rateColor = "#10b981"; // green for healthy
         
         if (rate.rate < 30) {
@@ -123,18 +148,18 @@ const D3FunnelChart: React.FC<D3FunnelChartProps> = ({ stages, roleName, convers
         });
     });
 
-  }, [stages, conversionRates]);
+  }, [sanitizedStages, displayConversionRates]);
 
   return (
     <div className="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700">
       <div className="mb-6">
         <h3 className="text-2xl font-bold text-white mb-2">{roleName}</h3>
         <div className="flex items-center space-x-4 text-sm text-gray-300">
-          <span>Total Applicants: {stages[0]?.candidate_count || 0}</span>
+          <span>Total Applicants: {sanitizedStages[0]?.candidate_count || 0}</span>
           <span>•</span>
-          <span>Hired: {stages[stages.length - 1]?.candidate_count || 0}</span>
+          <span>Hired: {sanitizedStages[sanitizedStages.length - 1]?.candidate_count || 0}</span>
           <span>•</span>
-          <span>Overall Conversion: {((stages[stages.length - 1]?.candidate_count || 0) / (stages[0]?.candidate_count || 1) * 100).toFixed(1)}%</span>
+          <span>Overall Conversion: {((sanitizedStages[sanitizedStages.length - 1]?.candidate_count || 0) / (sanitizedStages[0]?.candidate_count || 1) * 100).toFixed(1)}%</span>
           {lastUpdated && (
             <>
               <span>•</span>
@@ -161,7 +186,7 @@ const D3FunnelChart: React.FC<D3FunnelChartProps> = ({ stages, roleName, convers
       <div className="mt-8">
         <h4 className="text-lg font-semibold mb-4 text-white">Stage Conversion Analysis</h4>
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          {conversionRates.map((rate, index) => {
+          {displayConversionRates.map((rate, index) => {
             // Determine health status based on conversion rate
             let healthStatus = 'healthy';
             let healthText = 'Healthy';
