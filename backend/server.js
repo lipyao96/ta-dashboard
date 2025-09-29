@@ -101,10 +101,10 @@ app.get('/api/dashboard', async (req, res) => {
       includeGridData: true,
     });
 
-    // Optional: Switch to form-driven aggregation when enabled
+    // Optional: Switch to form-driven aggregation ONLY when explicitly forced via query
     const forceForm = String(req.query.forceForm || '').toLowerCase() === '1' || String(req.query.forceForm || '').toLowerCase() === 'true';
-    if (forceForm || String(process.env.FORM_DRIVEN_FUNNEL || '').toLowerCase() === 'true') {
-      console.log('Form-driven path ACTIVATED', { forceForm });
+    if (forceForm) {
+      console.log('Form-driven path ACTIVATED (explicit force)');
       try {
         const sheetsList = response.data.sheets || [];
         // Prefer a tab that contains variants of Form Responses (with or without underscore/number)
