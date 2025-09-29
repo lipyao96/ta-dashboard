@@ -101,7 +101,93 @@ app.get('/api/dashboard', async (req, res) => {
       includeGridData: true,
     });
 
-    // Optional: Switch to form-driven aggregation ONLY when explicitly forced via query
+    // 1) Primary source of truth: "Funnel Analysis" tab (manual or form-populated)
+    {
+      const sheetsList = response.data.sheets || [];
+      const funnelSheet = sheetsList.find(s => (s.properties.title || '').toLowerCase() === 'funnel analysis');
+      if (funnelSheet) {
+        const fRows = funnelSheet.data?.[0]?.rowData || [];
+        if (fRows.length > 0) {
+          const h = fRows[0]?.values?.map(v => (v.formattedValue || '').trim()) || [];
+          const idxTs = h.findIndex(x => (x || '').toLowerCase().includes('timestamp') || (x || '').toLowerCase().includes('date'));
+          const idxDept = h.findIndex(x => (x || '').toLowerCase().startsWith('department'));
+          const idxRole = h.findIndex(x => (x || '').toLowerCase().includes('role'));
+          // Stage columns are everything except non-funnel fields
+          const stageCols = h
+            .map((col, i) => ({ col, i }))
+            .filter(({ col }) => col && !/position|role|department|last_?updated|remarks|timestamp|date/i.test(col));
+
+          const rolesFromFunnel = [];
+          // Parse query dates in GMT+8
+          const { start, end } = req.query;
+          let startDate = null; let endDate = null;
+          if (start && end) {
+            try {
+              startDate = new Date(`${start}T00:00:00+08:00`);
+              endDate = new Date(`${end}T23:59:59.999+08:00`);
+            } catch (_) { startDate = null; endDate = null; }
+          }
+
+          for (let i = 1; i < fRows.length; i++) {
+            const r = fRows[i];
+            if (!r?.values) continue;
+            // Parse timestamp for date filtering
+            let when = 0;
+            if (idxTs >= 0) {
+              const raw = r.values[idxTs]?.formattedValue || '';
+              const d = raw && !isNaN(Date.parse(raw))
+                ? new Date(raw)
+                : new Date(raw.replace(/(\d{1,2})\/(\d{1,2})\/(\d{4}).*/, '$3-$1-$2'));
+              if (d instanceof Date && !isNaN(+d)) when = +d;
+            }
+            if (startDate && endDate && when) {
+              if (!(when >= +startDate && when <= +endDate)) continue;
+            }
+            const dept = idxDept >= 0 ? (r.values[idxDept]?.formattedValue || '') : '';
+            const role = idxRole >= 0 ? (r.values[idxRole]?.formattedValue || '') : (r.values[0]?.formattedValue || '');
+            if (!role) continue;
+
+            const stages = stageCols.map(({ col, i: ci }) => ({
+              stage_name: col,
+              candidate_count: parseInt(r.values[ci]?.formattedValue || '0', 10) || 0,
+              last_updated: ''
+            }));
+
+            const conversionRates = [];
+            for (let j = 1; j < stages.length; j++) {
+              const a = stages[j - 1];
+              const b = stages[j];
+              const rate = a.candidate_count > 0 ? (b.candidate_count / a.candidate_count) * 100 : 0;
+              conversionRates.push({ fromStage: a.stage_name, toStage: b.stage_name, rate, isLow: rate < 30 });
+            }
+
+            const totalApplicants = stages[0]?.candidate_count || 0;
+            const totalHired = stages[stages.length - 1]?.candidate_count || 0;
+            const funnelHealthScore = totalApplicants > 0 ? (totalHired / totalApplicants) * 100 : 0;
+
+            rolesFromFunnel.push({
+              name: `${dept ? dept + ' - ' : ''}${role}`,
+              stages,
+              remarks: '',
+              lastUpdated: when ? new Date(when).toLocaleDateString('en-US') : '',
+              isActive: true,
+              funnelHealthScore,
+              conversionRates,
+            });
+          }
+
+          if (rolesFromFunnel.length > 0) {
+            console.log(`Funnel Analysis primary: ${rolesFromFunnel.length} roles`);
+            return res.json({ roles: rolesFromFunnel });
+          }
+        }
+      }
+    }
+
+    // 2) Optional: Switch to form-driven aggregation ONLY when explicitly forced via query
+    const forceForm = String(req.query.forceForm || '').toLowerCase() === '1' || String(req.query.forceForm || '').toLowerCase() === 'true';
+    if (forceForm) {
+      console.log('Form-driven path ACTIVATED (explicit force)');
     const forceForm = String(req.query.forceForm || '').toLowerCase() === '1' || String(req.query.forceForm || '').toLowerCase() === 'true';
     if (forceForm) {
       console.log('Form-driven path ACTIVATED (explicit force)');
